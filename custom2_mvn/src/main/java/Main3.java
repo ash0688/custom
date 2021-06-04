@@ -1,32 +1,27 @@
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.opendevl.JFlat;
-import com.jayway.jsonpath.JsonPath;
+import com.google.gson.JsonObject;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
 import com.opencsv.exceptions.CsvException;
+import net.minidev.json.JSONObject;
+import net.minidev.json.parser.JSONParser;
+import org.apache.hc.core5.http.ParseException;
+
 import java.io.*;
-import java.net.*;
+import java.net.CookieManager;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.file.Paths;
 import java.util.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import org.apache.hc.client5.http.classic.methods.HttpGet;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
-import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
-import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.HttpResponse;
-import org.apache.hc.core5.http.ParseException;
-import org.apache.hc.core5.http.io.entity.EntityUtils;
-import org.apache.hc.core5.net.URIBuilder;
-import org.apache.http.client.methods.HttpRequestBase;
-
 
 import static java.nio.file.Files.readAllBytes;
 
-public class Main2 {
+public class Main3 {
 
     private static CookieManager cookieManager;
 
-    public static void main(String[] args) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
+    public static void main(String[] args) throws IOException, CsvException {
 
         int start = 1;
         int end = 2;
@@ -37,7 +32,7 @@ public class Main2 {
 
     }
 
-    public static void requestUpdateTrafficData(int start, int end) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
+    public static String requestUpdateTrafficData(int start, int end) throws IOException, CsvException {
 
         //scan csv into array
         List<List<String>> records = new ArrayList<>();
@@ -49,69 +44,97 @@ public class Main2 {
             e.printStackTrace();
         }
 
-        CloseableHttpClient client = null;
-        CloseableHttpResponse response = null;
-
-        client = HttpClients.createDefault();
-
         for (int i=start; i<end; i++) {
 
             System.out.println("system= "+ records.get(i).get(1) + "; count= " + i);
             String systemName = records.get(i).get(1);
-            systemName = systemName.replace("\"", "");
 
+            String responseStatus = null;
+            HttpURLConnection connection = null;
+            
             try {
 
-                HttpGet request = new HttpGet("https://www.edsm.net/api-system-v1/traffic");
 
-                URI uri = new URIBuilder(request.getUri())
-                        .addParameter("systemName", systemName)
-                        .build();
+                URL url= new URL("https://www.edsm.net/api-system-v1/traffic");
 
 
 
-                System.out.println(uri);
+                connection = (HttpURLConnection) url.openConnection();
+                connection.setRequestMethod("POST");
+                //connection.setRequestProperty("systemName", systemName);
+                connection.setUseCaches(false);
+                connection.setDefaultUseCaches(false);
+                connection.setDoOutput(true);
 
-                request.setUri(uri);
+                //Send request
+                try(DataOutputStream outputStream = new DataOutputStream(connection.getOutputStream())){
+                    JsonObject jsonParam = new JsonObject();
+                    jsonParam.addProperty("systemName", systemName);
+                    outputStream.writeBytes(jsonParam.toString());
+                    outputStream.flush();
+                }
+
+                //Get response
+
+                InputStream inputStream;
+                if(connection.getResponseCode() == HttpURLConnection.HTTP_OK){
+                    inputStream = connection.getInputStream();
+                } else {
+                    inputStream = connection.getErrorStream();
+                }
+
+                if(null == inputStream){
+                    return String.valueOf(connection.getResponseCode());
+                }
+
+
+                StringBuilder response = new StringBuilder();
+                try (BufferedReader inputBuffer = new BufferedReader(new InputStreamReader(inputStream))) {
+                    String line;
+                    while (null != (line = inputBuffer.readLine())) {
+                        response.append(line);
+                        response.append("\r");
+                    }
+                }
+
+
+                JSONParser parser = new JSONParser();
+                JSONObject jsonObject = (JSONObject) parser.parse(response.toString());
 
 
 
-                /*
-                APOD response = client.execute(request, httpResponse ->
-                        mapper.readValue(httpResponse.getEntity().getContent(), APOD.class)); */
+                //JsonObject jsonObject = new JsonObject(response.toString());
 
-                response = client.execute(request);
 
-                String json = EntityUtils.toString(response.getEntity());
+                if (connection.getResponseCode() == HttpURLConnection.HTTP_OK) {
+                    responseStatus = "success";
+                } else {
+                    responseStatus = String.valueOf(connection.getResponseCode()) + jsonObject.get("errorMessage") ;
+                }
 
-                System.out.println(json);
 
-                String[] ss=json.split(",");
 
-                String [] weekTraffic = ss[7].split(":");
-                String systemWeekTraffic = weekTraffic[1];
+                String systemWeekTraffic = jsonObject.getAsString("week");
+                String systemDayTraffic = jsonObject.getAsString("day");
 
-                updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemWeekTraffic, i, 12);
+                System.out.println(systemWeekTraffic);
+                System.out.println(systemDayTraffic);
 
-                System.out.println("week traffic updated =" + systemWeekTraffic);
 
-                String [] dayTraffic = ss[8].split(":");
-                dayTraffic = dayTraffic[1].split("}");
-                String systemDayTraffic = dayTraffic[0];
-
-                updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemDayTraffic, i, 13);
-
-                System.out.println("day traffic updated =" + systemDayTraffic);
-
-                Thread.sleep(1000);
-
-            } finally {
-                response.close();
+            } catch (net.minidev.json.parser.ParseException e) {
+                e.printStackTrace();
             }
+            finally {
+                if (null != connection){
+                    connection.disconnect();
+                }
+            }
+            System.out.println(responseStatus);
+            return responseStatus;
         }
 
-        client.close();
 
+        return null;
     }
 
     public static void updateCSV(String fileToUpdate, String replace,
