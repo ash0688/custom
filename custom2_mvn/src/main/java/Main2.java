@@ -29,10 +29,11 @@ public class Main2 {
 
     public static void main(String[] args) throws IOException, CsvException {
 
-        int start = 101;
-        int end = 102;
+        int start = 1;
+        int end = 100;
 
-        //parsePopulatedPlanets();
+        //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.csv");
+        //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.csv");
         requestUpdateTrafficData(start, end);
 
     }
@@ -41,7 +42,7 @@ public class Main2 {
 
         //scan csv into array
         List<List<String>> records = new ArrayList<>();
-        try (Scanner scanner = new Scanner(new File("C:\\Users\\ASH\\IdeaProjects\\Elite Farmer\\src\\main\\resources\\Copy of systemsPopulated_modified.csv"));) {
+        try (Scanner scanner = new Scanner(new File("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv"));) {
             while (scanner.hasNextLine()) {
                 records.add(getRecordFromLine(scanner.nextLine()));
             }
@@ -72,12 +73,14 @@ public class Main2 {
 
                 System.out.println(json);
 
+                response.close();
+
                 String[] ss=json.split(",");
 
                 String [] weekTraffic = ss[7].split(":");
                 String systemWeekTraffic = weekTraffic[1];
 
-                updateCSV("C:\\Users\\ASH\\IdeaProjects\\Elite Farmer\\src\\main\\resources\\Copy of systemsPopulated_modified.csv", systemWeekTraffic, i, 12);
+                updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemWeekTraffic, i, 12);
 
                 System.out.println("week traffic updated =" + systemWeekTraffic);
 
@@ -85,23 +88,20 @@ public class Main2 {
                 dayTraffic = dayTraffic[1].split("}");
                 String systemDayTraffic = dayTraffic[0];
 
-                updateCSV("C:\\Users\\ASH\\IdeaProjects\\Elite Farmer\\src\\main\\resources\\Copy of systemsPopulated_modified.csv", systemDayTraffic, i, 13);
+                updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemDayTraffic, i, 13);
 
                 System.out.println("day traffic updated =" + systemDayTraffic);
 
-                response.close();
+                Thread.sleep(3000);
 
-            } catch (ParseException e) {
+            } catch (ParseException | InterruptedException e) {
                 e.printStackTrace();
             }
             finally {
-
             }
-
-            client.close();
-
         }
 
+        client.close();
 
     }
 
@@ -209,14 +209,14 @@ public class Main2 {
             return fullResponseBuilder.toString();
         }
     }
-    public static void parsePopulatedPlanets() throws IOException {
+    public static void parsePopulatedPlanets(String pathInput, String pathOutput) throws IOException {
 
-        String str = new String(readAllBytes(Paths.get("C:\\Users\\ASH\\IdeaProjects\\Elite Farmer\\src\\main\\resources\\systemsPopulated2.json")));
+        String str = new String(readAllBytes(Paths.get(pathInput)));
 
         JFlat flatMe = new JFlat(str);
 
         //directly write the JSON document to CSV
-        flatMe.json2Sheet().write2csv("C:\\Users\\ASH\\IdeaProjects\\Elite Farmer\\src\\main\\resources\\systemsPopulated2.csv");
+        flatMe.json2Sheet().write2csv(pathOutput);
 
     }
 
