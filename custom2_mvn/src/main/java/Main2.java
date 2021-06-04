@@ -29,7 +29,7 @@ public class Main2 {
 
     public static void main(String[] args) throws IOException, CsvException {
 
-        int start = 1;
+        int start = 2;
         int end = 100;
 
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.csv");
@@ -57,6 +57,8 @@ public class Main2 {
             System.out.println("system= "+ records.get(i).get(1) + "; count= " + i);
             String systemName = records.get(i).get(1);
 
+            CloseableHttpResponse response = null;
+            
             try {
 
 
@@ -68,13 +70,12 @@ public class Main2 {
                 APOD response = client.execute(request, httpResponse ->
                         mapper.readValue(httpResponse.getEntity().getContent(), APOD.class)); */
 
-                CloseableHttpResponse response = client.execute(request);
+                response = client.execute(request);
+
                 String json = EntityUtils.toString(response.getEntity());
 
                 System.out.println(json);
-
-                response.close();
-
+                
                 String[] ss=json.split(",");
 
                 String [] weekTraffic = ss[7].split(":");
@@ -92,12 +93,13 @@ public class Main2 {
 
                 System.out.println("day traffic updated =" + systemDayTraffic);
 
-                Thread.sleep(3000);
+                Thread.sleep(1000);
 
             } catch (ParseException | InterruptedException e) {
                 e.printStackTrace();
             }
             finally {
+                response.close();
             }
         }
 
