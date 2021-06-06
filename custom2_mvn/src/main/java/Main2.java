@@ -28,8 +28,8 @@ public class Main2 {
 
     public static void main(String[] args) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
 
-        int start = 1;
-        int end = 2;
+        int start = 200;
+        int end = 400;
 
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.csv");
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.csv");
@@ -70,7 +70,7 @@ public class Main2 {
 
 
 
-                System.out.println(uri);
+                //System.out.println(uri);
 
                 request.setUri(uri);
 
@@ -84,7 +84,7 @@ public class Main2 {
 
                 String json = EntityUtils.toString(response.getEntity());
 
-                System.out.println(json);
+                //System.out.println(json);
 
                 String[] ss=json.split(",");
 
