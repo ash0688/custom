@@ -1,6 +1,4 @@
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.opendevl.JFlat;
-import com.jayway.jsonpath.JsonPath;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
 import com.opencsv.exceptions.CsvException;
@@ -8,40 +6,39 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.Paths;
 import java.util.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.net.URIBuilder;
-import org.apache.http.client.methods.HttpRequestBase;
 
 
 import static java.nio.file.Files.readAllBytes;
 
 public class Main2 {
 
-    private static CookieManager cookieManager;
-
     public static void main(String[] args) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
 
-        int start = 200;
-        int end = 400;
+        //system number to start
+        int start = 600;
+        //system number to finish
+        int end = 700;
+        //path to populated systems file
+        String filepath = System.getProperty("user.home") + "\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv" ;
 
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.csv");
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.csv");
-        requestUpdateTrafficData(start, end);
+        requestUpdateTrafficData(start, end, filepath);
 
     }
 
-    public static void requestUpdateTrafficData(int start, int end) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
+    public static void requestUpdateTrafficData(int start, int end, String filepath) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
 
         //scan csv into array
         List<List<String>> records = new ArrayList<>();
-        try (Scanner scanner = new Scanner(new File("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv"));) {
+        try (Scanner scanner = new Scanner(new File(filepath));) {
             while (scanner.hasNextLine()) {
                 records.add(getRecordFromLine(scanner.nextLine()));
             }
@@ -49,7 +46,8 @@ public class Main2 {
             e.printStackTrace();
         }
 
-        CloseableHttpClient client = null;
+        //initiate http client
+        CloseableHttpClient client;
         CloseableHttpResponse response = null;
 
         client = HttpClients.createDefault();
@@ -68,30 +66,19 @@ public class Main2 {
                         .addParameter("systemName", systemName)
                         .build();
 
-
-
-                //System.out.println(uri);
-
                 request.setUri(uri);
-
-
-
-                /*
-                APOD response = client.execute(request, httpResponse ->
-                        mapper.readValue(httpResponse.getEntity().getContent(), APOD.class)); */
 
                 response = client.execute(request);
 
                 String json = EntityUtils.toString(response.getEntity());
 
-                //System.out.println(json);
-
+                //parse response and update the csv
                 String[] ss=json.split(",");
 
                 String [] weekTraffic = ss[7].split(":");
                 String systemWeekTraffic = weekTraffic[1];
 
-                updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemWeekTraffic, i, 12);
+                updateCSV(filepath, systemWeekTraffic, i, 12);
 
                 System.out.println("week traffic updated =" + systemWeekTraffic);
 
@@ -99,7 +86,7 @@ public class Main2 {
                 dayTraffic = dayTraffic[1].split("}");
                 String systemDayTraffic = dayTraffic[0];
 
-                updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemDayTraffic, i, 13);
+                updateCSV(filepath, systemDayTraffic, i, 13);
 
                 System.out.println("day traffic updated =" + systemDayTraffic);
 
@@ -125,7 +112,6 @@ public class Main2 {
         // get CSV row column  and replace with by using row and column
         csvBody.get(row)[col] = replace;
         reader.close();
-
         // Write to CSV file which is open
         CSVWriter writer = new CSVWriter(new FileWriter(inputFile));
         writer.writeAll(csvBody);
@@ -144,87 +130,13 @@ public class Main2 {
         return values;
     }
 
-    public static class ParameterStringBuilder {
-        public static String getParamsString(Map<String, String> params)
-                throws UnsupportedEncodingException {
-            StringBuilder result = new StringBuilder();
-
-            for (Map.Entry<String, String> entry : params.entrySet()) {
-                result.append(URLEncoder.encode(entry.getKey(), "UTF-8"));
-                result.append("=");
-                result.append(URLEncoder.encode(entry.getValue(), "UTF-8"));
-                result.append("&");
-            }
-
-            String resultString = result.toString();
-            return resultString.length() > 0
-                    ? resultString.substring(0, resultString.length() - 1)
-                    : resultString;
-        }
-    }
-
-    public static class FullResponseBuilder {
-        public static String getFullResponse(HttpURLConnection con) throws IOException {
-            StringBuilder fullResponseBuilder = new StringBuilder();
-
-            fullResponseBuilder.append(con.getResponseCode())
-                    .append(" ")
-                    .append(con.getResponseMessage())
-                    .append("\n");
-
-            con.getHeaderFields()
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> entry.getKey() != null)
-                    .forEach(entry -> {
-
-                        fullResponseBuilder.append(entry.getKey())
-                                .append(": ");
-
-                        List<String> headerValues = entry.getValue();
-                        Iterator<String> it = headerValues.iterator();
-                        if (it.hasNext()) {
-                            fullResponseBuilder.append(it.next());
-
-                            while (it.hasNext()) {
-                                fullResponseBuilder.append(", ")
-                                        .append(it.next());
-                            }
-                        }
-
-                        fullResponseBuilder.append("\n");
-                    });
-
-            Reader streamReader = null;
-
-            if (con.getResponseCode() > 299) {
-                streamReader = new InputStreamReader(con.getErrorStream());
-            } else {
-                streamReader = new InputStreamReader(con.getInputStream());
-            }
-
-            BufferedReader in = new BufferedReader(streamReader);
-            String inputLine;
-            StringBuilder content = new StringBuilder();
-            while ((inputLine = in.readLine()) != null) {
-                content.append(inputLine);
-            }
-
-            in.close();
-
-            fullResponseBuilder.append("Response: ")
-                    .append(content);
-
-            return fullResponseBuilder.toString();
-        }
-    }
     public static void parsePopulatedPlanets(String pathInput, String pathOutput) throws IOException {
 
         String str = new String(readAllBytes(Paths.get(pathInput)));
 
         JFlat flatMe = new JFlat(str);
 
-        //directly write the JSON document to CSV
+        //directly parse the JSON document into CSV
         flatMe.json2Sheet().write2csv(pathOutput);
 
     }
