@@ -23,6 +23,7 @@ public class Main2 {
 
     public static void main(String[] args) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
 
+        //System count start & end from CSV. It is not recommended to set more than 500 at a time due to API requests per time limitations
         int start = 1305;
         int end = 1500;
 
@@ -57,8 +58,8 @@ public class Main2 {
 
         CloseableHttpResponse response = null;
 
+        //Iterate through systems and update
         for (int i=start; i<end; i++) {
-
 
             System.out.println("system= "+ records.get(i).get(1) + "; count= " + i);
             String systemName = records.get(i).get(1);
