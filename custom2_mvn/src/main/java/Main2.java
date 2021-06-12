@@ -1,6 +1,4 @@
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.github.opendevl.JFlat;
-import com.jayway.jsonpath.JsonPath;
 import com.opencsv.CSVReader;
 import com.opencsv.CSVWriter;
 import com.opencsv.exceptions.CsvException;
@@ -8,28 +6,25 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.Paths;
 import java.util.*;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
+import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpResponse;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.hc.core5.http.HttpResponse;
 import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.net.URIBuilder;
-import org.apache.http.client.methods.HttpRequestBase;
+import org.apache.hc.core5.util.Timeout;
 
 
 import static java.nio.file.Files.readAllBytes;
 
 public class Main2 {
 
-    private static CookieManager cookieManager;
-
     public static void main(String[] args) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
 
-        int start = 200;
-        int end = 400;
+        int start = 1305;
+        int end = 1500;
 
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.csv");
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.csv");
@@ -49,12 +44,21 @@ public class Main2 {
             e.printStackTrace();
         }
 
-        CloseableHttpClient client = null;
+        //Client init
+        RequestConfig requestConfig = RequestConfig.custom()
+                .setConnectionRequestTimeout(Timeout.ofDays(1000))
+                .setConnectTimeout(Timeout.ofDays(1000))
+                .setResponseTimeout(Timeout.ofDays(1000))
+                .build();
+
+        CloseableHttpClient client = HttpClients.custom()
+                .setDefaultRequestConfig(requestConfig)
+                .build();
+
         CloseableHttpResponse response = null;
 
-        client = HttpClients.createDefault();
-
         for (int i=start; i<end; i++) {
+
 
             System.out.println("system= "+ records.get(i).get(1) + "; count= " + i);
             String systemName = records.get(i).get(1);
@@ -68,45 +72,31 @@ public class Main2 {
                         .addParameter("systemName", systemName)
                         .build();
 
-
-
-                //System.out.println(uri);
-
                 request.setUri(uri);
-
-
-
-                /*
-                APOD response = client.execute(request, httpResponse ->
-                        mapper.readValue(httpResponse.getEntity().getContent(), APOD.class)); */
 
                 response = client.execute(request);
 
                 String json = EntityUtils.toString(response.getEntity());
 
-                //System.out.println(json);
-
                 String[] ss=json.split(",");
 
                 String [] weekTraffic = ss[7].split(":");
                 String systemWeekTraffic = weekTraffic[1];
-
-                updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemWeekTraffic, i, 12);
-
-                System.out.println("week traffic updated =" + systemWeekTraffic);
-
                 String [] dayTraffic = ss[8].split(":");
                 dayTraffic = dayTraffic[1].split("}");
                 String systemDayTraffic = dayTraffic[0];
 
-                updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemDayTraffic, i, 13);
+                if (systemWeekTraffic.matches("0") && systemDayTraffic.matches("0")) {
+                    updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemWeekTraffic, i, 12);
+                    System.out.println("week traffic updated =" + systemWeekTraffic);
+                    updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemDayTraffic, i, 13);
+                    System.out.println("day traffic updated =" + systemDayTraffic);
+                }
 
-                System.out.println("day traffic updated =" + systemDayTraffic);
-
-                Thread.sleep(1000);
 
             } finally {
                 response.close();
+                //Thread.sleep(1500);
             }
         }
 
