@@ -32,10 +32,10 @@ public class Main2 {
     public static void main(String[] args) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
 
         //System count start & end from CSV. It is not recommended to set more than 500 at a time due to API requests per time limitations
-        int start = 1300;
-        int end = 1500;
+        int start = 1500;
+        int end = 1700;
         String cmdrName = "ASH D";
-        String cmdrEDSMAPIKEY = "enter your key";
+        String cmdrEDSMAPIKEY = "your key here";
         String systemsPopulatedPath = "C:\\Users\\ASH\\Downloads\\systemsPopulated";
         String EDPFpath = "C:\\Program Files (x86)\\EDPathFinder\\EDPathFinder.exe";
         String winiumPath = "C:\\Users\\ASH\\IdeaProjects\\custom2\\custom2_mvn\\src\\resources\\Winium.Desktop.Driver.exe";
@@ -171,9 +171,17 @@ public class Main2 {
 
         String routeOptimizedFileName = System.currentTimeMillis() +"_route_optimized.csv";
         try {
-            service.start();
+            if (!service.isRunning()) {
+                service.start();
+            } else {
+                service.stop();
+                service.start();
+            }
             WiniumDriver driver = new WiniumDriver(service,options);
             Thread.sleep(17000);
+
+            driver.findElement(By.name("EDPathFinder")).click();
+            //driver.switchTo().window("EDPathFinder");
             driver.getWindowHandle();
 
             do {
@@ -183,15 +191,37 @@ public class Main2 {
 
             driver.findElement(By.name("Tools")).click();
             driver.findElement(By.name("Mission and Custom Router")).click();
+
+            driver.findElement(By.name("Custom Routing")).click();
+            //river.switchTo().window("Custom Routing");
             driver.getWindowHandle();
 
             Iterator setValues = systemListToRoute.iterator();
             while (setValues.hasNext()) {
+                do {
+                    Thread.sleep(500);
+                }
+                while (driver.findElement(By.name("Custom Routing")).findElement(By.name("Add Custom Stop")).findElement(By.className("QLineEdit")).isEnabled() == false);
                 driver.findElement(By.name("Custom Routing")).findElement(By.name("Add Custom Stop")).findElement(By.className("QLineEdit")).sendKeys((CharSequence) setValues.next());
+
+                do {
+                    Thread.sleep(500);
+                }
+                while (driver.findElement(By.name("Add Stop")).isEnabled() == false);
                 driver.findElement(By.name("Add Stop")).click();
+
+
             }
 
+
+            driver.getWindowHandle();
+            Thread.sleep(5000);
+            do {
+                Thread.sleep(500);
+            }
+            while (driver.findElement(By.name("Optimize Route")).isEnabled() == false);
             driver.findElement(By.name("Optimize Route")).click();
+            Thread.sleep(5000);
 
             do {
                 Thread.sleep(1000);
@@ -201,6 +231,8 @@ public class Main2 {
 
             driver.findElement(By.name("Export as CSV...")).click();
 
+            driver.findElement(By.name("Save file")).click();
+            //driver.switchTo().frame("Save file");
             driver.getWindowHandle();
             driver.findElement(By.name("Save file")).findElement(By.name("Previous Locations")).click();
             driver.findElement(By.name("Save file")).findElement(By.name("Address")).sendKeys(systemsPopulatedPath);
