@@ -76,6 +76,15 @@
             <artifactId>httpmime</artifactId>
             <version>4.5.3</version>
         </dependency>
-
+        <dependency>
+            <groupId>com.github.2gis.winium</groupId>
+            <artifactId>winium-webdriver</artifactId>
+            <version>0.1.0-1</version>
+        </dependency>
+        <dependency>
+            <groupId>com.github.2gis.winium</groupId>
+            <artifactId>winium-elements-desktop</artifactId>
+            <version>0.2.0-1</version>
+        </dependency>
     </dependencies>
 </project>

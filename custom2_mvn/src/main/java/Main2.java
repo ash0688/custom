@@ -6,6 +6,9 @@ import java.io.*;
 import java.net.*;
 import java.nio.file.Paths;
 import java.util.*;
+
+import org.apache.commons.collections4.BidiMap;
+import org.apache.commons.collections4.bidimap.DualHashBidiMap;
 import org.apache.hc.client5.http.classic.methods.HttpGet;
 import org.apache.hc.client5.http.config.RequestConfig;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
@@ -15,6 +18,11 @@ import org.apache.hc.core5.http.ParseException;
 import org.apache.hc.core5.http.io.entity.EntityUtils;
 import org.apache.hc.core5.net.URIBuilder;
 import org.apache.hc.core5.util.Timeout;
+import org.openqa.selenium.By;
+import org.openqa.selenium.Keys;
+import org.openqa.selenium.winium.DesktopOptions;
+import org.openqa.selenium.winium.WiniumDriver;
+import org.openqa.selenium.winium.WiniumDriverService;
 
 
 import static java.nio.file.Files.readAllBytes;
@@ -24,20 +32,30 @@ public class Main2 {
     public static void main(String[] args) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
 
         //System count start & end from CSV. It is not recommended to set more than 500 at a time due to API requests per time limitations
-        int start = 1305;
+        int start = 1300;
         int end = 1500;
+        String cmdrName = "ASH D";
+        String cmdrEDSMAPIKEY = "enter your key";
+        String systemsPopulatedPath = "C:\\Users\\ASH\\Downloads\\systemsPopulated";
+        String EDPFpath = "C:\\Program Files (x86)\\EDPathFinder\\EDPathFinder.exe";
+        String winiumPath = "C:\\Users\\ASH\\IdeaProjects\\custom2\\custom2_mvn\\src\\resources\\Winium.Desktop.Driver.exe";
+
 
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated.csv");
         //parsePopulatedPlanets("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.json", "C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated2.csv");
-        requestUpdateTrafficData(start, end);
+        requestUpdateTrafficData(start, end, cmdrName, cmdrEDSMAPIKEY, systemsPopulatedPath, EDPFpath, winiumPath);
 
     }
 
-    public static void requestUpdateTrafficData(int start, int end) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
+    public static void requestUpdateTrafficData(int start, int end, String cmdrName, String cmdrEDSMAPIKEY, String systemsPopulatedPath, String EDPFpath, String winiumPath) throws IOException, CsvException, ParseException, InterruptedException, URISyntaxException {
+
+        Set<String> systemListToRoute = new HashSet<String>();
+        ;
+        String cmdrLastLocSystem = null;
 
         //scan csv into array
         List<List<String>> records = new ArrayList<>();
-        try (Scanner scanner = new Scanner(new File("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv"));) {
+        try (Scanner scanner = new Scanner(new File(systemsPopulatedPath + "\\systemsPopulated_modified.csv"));) {
             while (scanner.hasNextLine()) {
                 records.add(getRecordFromLine(scanner.nextLine()));
             }
@@ -45,7 +63,7 @@ public class Main2 {
             e.printStackTrace();
         }
 
-        //Client init
+        //HTTP Client init
         RequestConfig requestConfig = RequestConfig.custom()
                 .setConnectionRequestTimeout(Timeout.ofDays(1000))
                 .setConnectTimeout(Timeout.ofDays(1000))
@@ -58,12 +76,15 @@ public class Main2 {
 
         CloseableHttpResponse response = null;
 
-        //Iterate through systems and update
-        for (int i=start; i<end; i++) {
 
-            System.out.println("system= "+ records.get(i).get(1) + "; count= " + i);
-            String systemName = records.get(i).get(1);
-            systemName = systemName.replace("\"", "");
+        BidiMap<Integer,String> map = new DualHashBidiMap<>();
+
+        //Iterate through systems and update
+        for (int i = start; i < end; i++) {
+
+            System.out.println("system= " + records.get(i).get(1) + "; count= " + i);
+            String systemName = records.get(i).get(1).replace("\"", "");
+
 
             try {
 
@@ -79,19 +100,21 @@ public class Main2 {
 
                 String json = EntityUtils.toString(response.getEntity());
 
-                String[] ss=json.split(",");
+                String[] ss = json.split(",");
 
-                String [] weekTraffic = ss[7].split(":");
+                String[] weekTraffic = ss[7].split(":");
                 String systemWeekTraffic = weekTraffic[1];
-                String [] dayTraffic = ss[8].split(":");
+                String[] dayTraffic = ss[8].split(":");
                 dayTraffic = dayTraffic[1].split("}");
                 String systemDayTraffic = dayTraffic[0];
 
                 if (systemWeekTraffic.matches("0") && systemDayTraffic.matches("0")) {
-                    updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemWeekTraffic, i, 12);
+                    updateCSV(systemsPopulatedPath + "\\systemsPopulated_modified.csv", systemWeekTraffic, i, 12);
                     System.out.println("week traffic updated =" + systemWeekTraffic);
-                    updateCSV("C:\\Users\\ASH\\Downloads\\systemsPopulated\\systemsPopulated_modified.csv", systemDayTraffic, i, 13);
+                    updateCSV(systemsPopulatedPath + "\\systemsPopulated_modified.csv", systemDayTraffic, i, 13);
                     System.out.println("day traffic updated =" + systemDayTraffic);
+                    map.put(i, systemName);
+                    systemListToRoute.add(systemName);
                 }
 
 
@@ -101,7 +124,124 @@ public class Main2 {
             }
         }
 
+        System.out.println("Route to optimize : " + systemListToRoute);
+
+
+
+        //get CMDR's current location
+        try {
+            HttpGet request = new HttpGet("https://www.edsm.net/api-logs-v1/get-position");
+
+            URI uri = new URIBuilder(request.getUri())
+                    .addParameter("commanderName", cmdrName.replace("\"", ""))
+                    .addParameter("apiKey", cmdrEDSMAPIKEY.replace("\"", ""))
+                    .build();
+
+            request.setUri(uri);
+
+            response = client.execute(request);
+
+            String json = EntityUtils.toString(response.getEntity());
+
+            String[] ss = json.split(",");
+            String[] cmdrLastLoc = ss[2].split(":");
+            cmdrLastLocSystem = cmdrLastLoc[1];
+
+
+        } catch (URISyntaxException e) {
+            e.printStackTrace();
+        } catch (IOException e) {
+            e.printStackTrace();
+        } catch (ParseException e) {
+            e.printStackTrace();
+        } finally {
+            response.close();
+        }
+
+        System.out.println("Current system = " + cmdrLastLocSystem);
+
         client.close();
+
+        //Add route to EDPathFinder and save optimized route as csv
+
+        DesktopOptions options = new DesktopOptions(); //Instantiate Winium Desktop Options
+        options.setApplicationPath(EDPFpath);
+        File driverPath = new File(winiumPath);
+        WiniumDriverService service = new WiniumDriverService.Builder().usingDriverExecutable(driverPath).usingPort(9999).withVerbose(true).withSilent(false).buildDesktopService();
+
+        String routeOptimizedFileName = System.currentTimeMillis() +"_route_optimized.csv";
+        try {
+            service.start();
+            WiniumDriver driver = new WiniumDriver(service,options);
+            Thread.sleep(17000);
+            driver.getWindowHandle();
+
+            do {
+                Thread.sleep(1000);
+            }
+            while (driver.findElement(By.name("Tools")).isEnabled() == false);
+
+            driver.findElement(By.name("Tools")).click();
+            driver.findElement(By.name("Mission and Custom Router")).click();
+            driver.getWindowHandle();
+
+            Iterator setValues = systemListToRoute.iterator();
+            while (setValues.hasNext()) {
+                driver.findElement(By.name("Custom Routing")).findElement(By.name("Add Custom Stop")).findElement(By.className("QLineEdit")).sendKeys((CharSequence) setValues.next());
+                driver.findElement(By.name("Add Stop")).click();
+            }
+
+            driver.findElement(By.name("Optimize Route")).click();
+
+            do {
+                Thread.sleep(1000);
+            }
+            while (driver.findElement(By.name("File")).isEnabled() == false);
+            driver.findElement(By.name("File")).click();
+
+            driver.findElement(By.name("Export as CSV...")).click();
+
+            driver.getWindowHandle();
+            driver.findElement(By.name("Save file")).findElement(By.name("Previous Locations")).click();
+            driver.findElement(By.name("Save file")).findElement(By.name("Address")).sendKeys(systemsPopulatedPath);
+            driver.findElement(By.name("Save file")).findElement(By.name("Address")).click();
+            driver.findElement(By.name("Save file")).findElement(By.name("Go to \""+ systemsPopulatedPath +"\"")).click();
+
+
+            driver.findElement(By.name("Save file")).findElement(By.className("Edit")).click();
+
+            driver.findElement(By.name("Save file")).findElement(By.className("Edit")).sendKeys(routeOptimizedFileName);
+            driver.findElement(By.name("Save file")).findElement(By.name("Save")).click();
+
+            //Thread.sleep(60000);
+            driver.quit();
+
+        } catch (IOException e) {
+            e.printStackTrace();
+        } finally{
+            service.stop();
+        }
+
+        //update optimized route into core csv
+        //scan csv into array
+        List<List<String>> optimizedRoute = new ArrayList<>();
+        try (Scanner scanner = new Scanner(new File(systemsPopulatedPath + "\\" + routeOptimizedFileName));) {
+            while (scanner.hasNextLine()) {
+                optimizedRoute.add(getRecordFromLine(scanner.nextLine()));
+            }
+        } catch (FileNotFoundException e) {
+            e.printStackTrace();
+        }
+
+        try {
+            for (int j = 2; j< optimizedRoute.size(); j++) {
+                String systemToUpdate = optimizedRoute.get(j).get(0).split(";")[0].replace("\"", "");
+                int row = map.getKey(systemToUpdate);
+                updateCSV(systemsPopulatedPath + "\\systemsPopulated_modified.csv", Integer.toString(j), row, 14);
+            }
+        } catch (Exception e){
+            e.printStackTrace();
+        }
 
     }
 
@@ -135,80 +275,6 @@ public class Main2 {
         return values;
     }
 
-    public static class ParameterStringBuilder {
-        public static String getParamsString(Map<String, String> params)
-                throws UnsupportedEncodingException {
-            StringBuilder result = new StringBuilder();
-
-            for (Map.Entry<String, String> entry : params.entrySet()) {
-                result.append(URLEncoder.encode(entry.getKey(), "UTF-8"));
-                result.append("=");
-                result.append(URLEncoder.encode(entry.getValue(), "UTF-8"));
-                result.append("&");
-            }
-
-            String resultString = result.toString();
-            return resultString.length() > 0
-                    ? resultString.substring(0, resultString.length() - 1)
-                    : resultString;
-        }
-    }
-
-    public static class FullResponseBuilder {
-        public static String getFullResponse(HttpURLConnection con) throws IOException {
-            StringBuilder fullResponseBuilder = new StringBuilder();
-
-            fullResponseBuilder.append(con.getResponseCode())
-                    .append(" ")
-                    .append(con.getResponseMessage())
-                    .append("\n");
-
-            con.getHeaderFields()
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> entry.getKey() != null)
-                    .forEach(entry -> {
-
-                        fullResponseBuilder.append(entry.getKey())
-                                .append(": ");
-
-                        List<String> headerValues = entry.getValue();
-                        Iterator<String> it = headerValues.iterator();
-                        if (it.hasNext()) {
-                            fullResponseBuilder.append(it.next());
-
-                            while (it.hasNext()) {
-                                fullResponseBuilder.append(", ")
-                                        .append(it.next());
-                            }
-                        }
-
-                        fullResponseBuilder.append("\n");
-                    });
-
-            Reader streamReader = null;
-
-            if (con.getResponseCode() > 299) {
-                streamReader = new InputStreamReader(con.getErrorStream());
-            } else {
-                streamReader = new InputStreamReader(con.getInputStream());
-            }
-
-            BufferedReader in = new BufferedReader(streamReader);
-            String inputLine;
-            StringBuilder content = new StringBuilder();
-            while ((inputLine = in.readLine()) != null) {
-                content.append(inputLine);
-            }
-
-            in.close();
-
-            fullResponseBuilder.append("Response: ")
-                    .append(content);
-
-            return fullResponseBuilder.toString();
-        }
-    }
     public static void parsePopulatedPlanets(String pathInput, String pathOutput) throws IOException {
 
         String str = new String(readAllBytes(Paths.get(pathInput)));
